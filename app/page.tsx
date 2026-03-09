@@ -13,13 +13,14 @@ import {
 } from "recharts"
 
 type Entry = {
+  id: string
   date: string
   inr: number
   dose: string
   notes: string
 }
 
-const STORAGE_KEY = "inr-tracker-data-v3"
+const STORAGE_KEY = "inr-tracker-data-v4"
 
 export default function Page() {
   const [entryDate, setEntryDate] = useState(
@@ -60,6 +61,7 @@ export default function Page() {
     if (!inr || !entryDate) return
 
     const entry: Entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       date: entryDate,
       inr: Number(inr),
       dose: dose.trim(),
@@ -71,6 +73,12 @@ export default function Page() {
     setInr("")
     setDose("")
     setNotes("")
+  }
+
+  function deleteEntry(id: string) {
+    const confirmed = window.confirm("Delete this INR entry?")
+    if (!confirmed) return
+    setEntries(entries.filter((entry) => entry.id !== id))
   }
 
   function getStatus(value: number) {
@@ -363,16 +371,25 @@ export default function Page() {
                   <th style={thTdStyle}>Status</th>
                   <th style={thTdStyle}>Warfarin Dose</th>
                   <th style={thTdStyle}>Notes</th>
+                  <th style={thTdStyle}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedEntries.map((entry, index) => (
-                  <tr key={index}>
+                {sortedEntries.map((entry) => (
+                  <tr key={entry.id}>
                     <td style={thTdStyle}>{entry.date}</td>
                     <td style={thTdStyle}>{entry.inr}</td>
                     <td style={thTdStyle}>{getStatus(entry.inr)}</td>
                     <td style={thTdStyle}>{entry.dose || "--"}</td>
                     <td style={thTdStyle}>{entry.notes || "--"}</td>
+                    <td style={thTdStyle}>
+                      <button
+                        onClick={() => deleteEntry(entry.id)}
+                        style={deleteButtonStyle}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -433,6 +450,15 @@ const secondaryButtonStyle: React.CSSProperties = {
   border: "1px solid #cbd5e1",
   background: "white",
   color: "#111827",
+  cursor: "pointer"
+}
+
+const deleteButtonStyle: React.CSSProperties = {
+  padding: "8px 12px",
+  borderRadius: 8,
+  border: "1px solid #fca5a5",
+  background: "#fee2e2",
+  color: "#991b1b",
   cursor: "pointer"
 }
 
