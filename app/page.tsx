@@ -19,9 +19,12 @@ type Entry = {
   notes: string
 }
 
-const STORAGE_KEY = "inr-tracker-data-v2"
+const STORAGE_KEY = "inr-tracker-data-v3"
 
 export default function Page() {
+  const [entryDate, setEntryDate] = useState(
+    new Date().toISOString().split("T")[0]
+  )
   const [inr, setInr] = useState("")
   const [dose, setDose] = useState("")
   const [notes, setNotes] = useState("")
@@ -54,16 +57,17 @@ export default function Page() {
   const max = Number(targetMax)
 
   function addEntry() {
-    if (!inr) return
+    if (!inr || !entryDate) return
 
     const entry: Entry = {
-      date: new Date().toLocaleDateString(),
+      date: entryDate,
       inr: Number(inr),
       dose: dose.trim(),
       notes: notes.trim()
     }
 
     setEntries([entry, ...entries])
+    setEntryDate(new Date().toISOString().split("T")[0])
     setInr("")
     setDose("")
     setNotes("")
@@ -75,34 +79,24 @@ export default function Page() {
     return "In Range"
   }
 
-  const latestEntry = entries[0]
+  const sortedEntries = useMemo(() => {
+    return [...entries].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
+  }, [entries])
+
+  const latestEntry = sortedEntries[0]
 
   const chartData = useMemo(() => {
     return [...entries]
-      .slice()
-      .reverse()
-      .map((entry, index) => ({
-        name: `${index + 1}`,
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .map((entry) => ({
         date: entry.date,
         inr: entry.inr
       }))
   }, [entries])
 
   function exportDoctorReport() {
-    const reportLines = [
-      "INR TRACKER REPORT",
-      "",
-      `Generated: ${new Date().toLocaleString()}`,
-      `Target Range: ${targetMin} - ${targetMax}`,
-      "",
-      "Entries:",
-      ...entries.map(
-        (entry) =>
-          `${entry.date} | INR ${entry.inr} | ${getStatus(entry.inr)} | Dose: ${entry.dose || "N/A"} | Notes: ${entry.notes || "None"}`
-      )
-    ]
-
-    const reportText = reportLines.join("\n")
     const newWindow = window.open("", "_blank", "width=900,height=700")
     if (!newWindow) return
 
@@ -150,7 +144,7 @@ export default function Page() {
               </tr>
             </thead>
             <tbody>
-              ${entries
+              ${sortedEntries
                 .map(
                   (entry) => `
                     <tr>
@@ -174,8 +168,6 @@ export default function Page() {
       </html>
     `)
     newWindow.document.close()
-
-    console.log(reportText)
   }
 
   return (
@@ -269,6 +261,16 @@ export default function Page() {
           }}
         >
           <div>
+            <label style={labelStyle}>Test Date</label>
+            <input
+              type="date"
+              value={entryDate}
+              onChange={(e) => setEntryDate(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
             <label style={labelStyle}>INR</label>
             <input
               value={inr}
@@ -349,7 +351,7 @@ export default function Page() {
       <div style={cardStyle}>
         <h2 style={{ marginTop: 0 }}>History</h2>
 
-        {entries.length === 0 ? (
+        {sortedEntries.length === 0 ? (
           <p style={subtleStyle}>No entries yet.</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -364,7 +366,7 @@ export default function Page() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry, index) => (
+                {sortedEntries.map((entry, index) => (
                   <tr key={index}>
                     <td style={thTdStyle}>{entry.date}</td>
                     <td style={thTdStyle}>{entry.inr}</td>
