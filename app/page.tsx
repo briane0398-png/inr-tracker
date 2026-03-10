@@ -2,6 +2,16 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  ReferenceLine
+} from "recharts"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,17 +27,23 @@ type Entry = {
 }
 
 export default function Page() {
+
   const [entries, setEntries] = useState<Entry[]>([])
+
   const [date, setDate] = useState("")
   const [inr, setInr] = useState("")
   const [dose, setDose] = useState("")
   const [notes, setNotes] = useState("")
 
+  const [targetMin, setTargetMin] = useState(2.0)
+  const [targetMax, setTargetMax] = useState(3.0)
+
   async function loadEntries() {
+
     const { data } = await supabase
       .from("inr_entries")
       .select("*")
-      .order("date", { ascending: false })
+      .order("date", { ascending: true })
 
     if (data) setEntries(data)
   }
@@ -37,6 +53,7 @@ export default function Page() {
   }, [])
 
   async function addEntry() {
+
     if (!date || !inr) return
 
     await supabase.from("inr_entries").insert({
@@ -59,46 +76,167 @@ export default function Page() {
     loadEntries()
   }
 
+  const latest = entries[entries.length - 1]
+
+  function exportReport() {
+
+    const rows = entries
+      .map(
+        (e) =>
+          `${e.date} | INR ${e.inr} | Dose ${e.dose || "-"} | ${e.notes || ""}`
+      )
+      .join("\n")
+
+    const text = `INR REPORT\n\nTarget Range: ${targetMin} - ${targetMax}\n\n${rows}`
+
+    const blob = new Blob([text], { type: "text/plain" })
+
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = "INR_Report.txt"
+    link.click()
+  }
+
   return (
-    <main style={{ padding: 20, fontFamily: "Arial" }}>
+
+    <main style={{ padding: 30, fontFamily: "Arial", maxWidth: 900 }}>
+
       <h1>INR Tracker</h1>
+
+      <p>
+        Track INR values, warfarin dose changes, and trends over time.
+      </p>
+
+      {latest && (latest.inr < targetMin || latest.inr > targetMax) && (
+        <div
+          style={{
+            background: "#ffe5e5",
+            padding: 10,
+            marginBottom: 20,
+            borderRadius: 6
+          }}
+        >
+          ⚠️ Alert: Your latest INR ({latest.inr}) is outside your target range.
+        </div>
+      )}
 
       <h2>Add Entry</h2>
 
-      <input
-        type="date"
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-      />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
 
-      <input
-        placeholder="INR"
-        value={inr}
-        onChange={(e) => setInr(e.target.value)}
-      />
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
 
-      <input
-        placeholder="Dose"
-        value={dose}
-        onChange={(e) => setDose(e.target.value)}
-      />
+        <input
+          placeholder="INR"
+          value={inr}
+          onChange={(e) => setInr(e.target.value)}
+        />
 
-      <input
+        <input
+          placeholder="Warfarin Dose"
+          value={dose}
+          onChange={(e) => setDose(e.target.value)}
+        />
+
+      </div>
+
+      <textarea
         placeholder="Notes"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
+        style={{ marginTop: 10, width: "100%" }}
       />
 
-      <button onClick={addEntry}>Add</button>
+      <div style={{ marginTop: 10 }}>
 
-      <h2>History</h2>
+        <button onClick={addEntry}>Add Entry</button>
 
-      {entries.map((entry) => (
-        <div key={entry.id} style={{ marginBottom: 10 }}>
-          {entry.date} — INR {entry.inr} — Dose {entry.dose}
-          <button onClick={() => deleteEntry(entry.id)}>Delete</button>
-        </div>
-      ))}
+        <button
+          onClick={exportReport}
+          style={{ marginLeft: 10 }}
+        >
+          Export Doctor Report
+        </button>
+
+      </div>
+
+      <h2 style={{ marginTop: 40 }}>INR Graph</h2>
+
+      <div style={{ width: "100%", height: 300 }}>
+
+        <ResponsiveContainer>
+
+          <LineChart data={entries}>
+
+            <CartesianGrid strokeDasharray="3 3" />
+
+            <XAxis dataKey="date" />
+
+            <YAxis />
+
+            <Tooltip />
+
+            <ReferenceLine
+              y={targetMin}
+              stroke="orange"
+              strokeDasharray="4"
+            />
+
+            <ReferenceLine
+              y={targetMax}
+              stroke="red"
+              strokeDasharray="4"
+            />
+
+            <Line
+              type="monotone"
+              dataKey="inr"
+              stroke="#2563eb"
+              strokeWidth={2}
+            />
+
+          </LineChart>
+
+        </ResponsiveContainer>
+
+      </div>
+
+      <h2 style={{ marginTop: 40 }}>History</h2>
+
+      {entries
+        .slice()
+        .reverse()
+        .map((entry) => (
+
+          <div
+            key={entry.id}
+            style={{
+              padding: 10,
+              borderBottom: "1px solid #ddd"
+            }}
+          >
+
+            <strong>{entry.date}</strong> — INR {entry.inr}
+
+            {entry.dose && <> — Dose {entry.dose}</>}
+
+            {entry.notes && <> — {entry.notes}</>}
+
+            <button
+              onClick={() => deleteEntry(entry.id)}
+              style={{ marginLeft: 10 }}
+            >
+              Delete
+            </button>
+
+          </div>
+
+        ))}
+
     </main>
   )
 }
